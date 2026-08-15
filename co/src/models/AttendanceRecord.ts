@@ -82,11 +82,8 @@ AttendanceRecordSchema.index({ sessionId: 1, studentId: 1 }, { unique: true });
 // Compound Index: For high-speed student subject attendance percentage calculation
 AttendanceRecordSchema.index({ studentId: 1, subjectId: 1 });
 
-if (mongoose.models.AttendanceRecord) {
-  delete mongoose.models.AttendanceRecord;
-}
-
 export const AttendanceRecord: Model<IAttendanceRecord> =
+  mongoose.models.AttendanceRecord ||
   mongoose.model<IAttendanceRecord>("AttendanceRecord", AttendanceRecordSchema);
 
 export default AttendanceRecord;

@@ -2,9 +2,9 @@
  * Developer Sandbox Runner.
  * Starts an in-memory MongoDB database, updates the local .env connection URI,
  * and launches Next.js development server.
- * Keep this running while testing the application inside your Brave Browser!
+ * Keep this running while testing the application inside your Browser!
  */
-const { spawn, execSync } = require("child_process");
+const { spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
@@ -16,7 +16,7 @@ async function main() {
   const mongod = await MongoMemoryServer.create({
     instance: {
       dbName: "attendance_dev",
-    }
+    },
   });
   const mongoUri = mongod.getUri();
   console.log(`📡 In-Memory MongoDB started at: ${mongoUri}`);
@@ -54,7 +54,7 @@ async function main() {
   console.log("🌱 Seeding database with demo users...");
   try {
     process.env.MONGODB_URI = mongoUri;
-    const jiti = require("jiti")(__filename);
+    const jiti = require("jiti")(path.resolve(__filename));
     const { seed } = jiti("./seed.ts");
     await seed();
     console.log("✅ Seed completed successfully!");
@@ -64,12 +64,16 @@ async function main() {
 
   // 5. Start Next.js development server
   console.log("🔌 Launching Next.js development server...");
-  const devProcess = spawn("cmd.exe", ["/c", "npm run dev"], {
+  const isWindows = process.platform === "win32";
+  const cmd = isWindows ? "cmd.exe" : "npm";
+  const args = isWindows ? ["/c", "npm run dev"] : ["run", "dev"];
+
+  const devProcess = spawn(cmd, args, {
     cwd: path.resolve(__dirname, ".."),
     env: {
       ...process.env,
-      MONGODB_URI: mongoUri
-    }
+      MONGODB_URI: mongoUri,
+    },
   });
 
   devProcess.stdout.on("data", (data) => {
@@ -81,19 +85,17 @@ async function main() {
   });
 
   // Handle termination signals
-  process.on("SIGINT", async () => {
+  const cleanup = async () => {
     console.log("\n🧹 Cleaning up database and dev server processes...");
-    devProcess.kill();
-    await mongod.stop();
+    try {
+      devProcess.kill();
+      await mongod.stop();
+    } catch {}
     process.exit(0);
-  });
+  };
 
-  process.on("SIGTERM", async () => {
-    console.log("\n🧹 Cleaning up database and dev server processes...");
-    devProcess.kill();
-    await mongod.stop();
-    process.exit(0);
-  });
+  process.on("SIGINT", cleanup);
+  process.on("SIGTERM", cleanup);
 }
 
 main().catch((err) => {

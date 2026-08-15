@@ -76,11 +76,7 @@ const StudentSchema: Schema<IStudent> = new Schema(
   }
 );
 
-// In Next.js dev server, recompile model so hot-reloads always pick up latest schema
-if (mongoose.models.Student) {
-  delete mongoose.models.Student;
-}
-
-export const Student: Model<IStudent> = mongoose.model<IStudent>("Student", StudentSchema);
+export const Student: Model<IStudent> =
+  mongoose.models.Student || mongoose.model<IStudent>("Student", StudentSchema);
 
 export default Student;
