@@ -1,6 +1,6 @@
 /**
  * MongoDB Mongoose cached connection singleton for Next.js serverless runtime.
- * Includes automatic in-memory MongoDB fallback and auto-seeding for zero-config local development.
+ * Includes automatic in-memory MongoDB fallback in development and auto-seeding for initial demo accounts.
  */
 import mongoose from "mongoose";
 
@@ -49,7 +49,7 @@ async function autoSeedIfEmpty(): Promise<void> {
     const { User } = await import("../../models/User");
     const count = await User.countDocuments();
     if (count === 0) {
-      console.log("🌱 [Database] Database is empty. Auto-seeding initial demo accounts...");
+      console.log("🌱 [Database] Database has 0 users. Auto-seeding initial demo accounts...");
       const { seedDatabase } = await import("./seed-data");
       await seedDatabase(false);
       console.log("✅ [Database] Demo accounts auto-seeded successfully!");
@@ -82,16 +82,15 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
     };
 
     cached.promise = (async () => {
-      // 1. Try configured URI if provided
+      // 1. Try configured URI if provided (e.g. MongoDB Atlas)
       if (configuredUri && configuredUri.trim().length > 0) {
         try {
           const instance = await mongoose.connect(configuredUri, opts);
-          if (isDev) {
-            await autoSeedIfEmpty();
-          }
+          await autoSeedIfEmpty();
           return instance;
         } catch (err: any) {
           if (!isDev) {
+            console.error(`❌ [Database Error] Failed to connect to MONGODB_URI on production: ${err?.message || err}`);
             throw err;
           }
           console.warn(`⚠️ [Database] Could not connect to configured MONGODB_URI (${configuredUri}): ${err?.message || err}. Falling back to in-memory MongoDB.`);
@@ -106,7 +105,9 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
         return instance;
       }
 
-      throw new Error("Please define the MONGODB_URI environment variable inside .env.production / server environment.");
+      throw new Error(
+        "Missing MONGODB_URI environment variable on Vercel/Production. Please configure MONGODB_URI with your MongoDB Atlas connection string in your Vercel Project Settings."
+      );
     })();
   }
 

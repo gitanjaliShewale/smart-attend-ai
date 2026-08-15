@@ -1,24 +1,34 @@
 /**
- * Dev-only seed endpoint.
+ * Seed endpoint.
  * Seeds demo users, classes, subjects, enrollments, and settings
- * into the currently running MongoDB instance.
+ * into the database (MongoDB Atlas or in-memory).
  *
- * PROTECTED: Only available when NODE_ENV !== "production"
- * POST /api/dev-seed
+ * Available in development, or in production if database is empty or with AUTH_SECRET auth.
+ * POST /api/dev-seed or GET /api/dev-seed
  */
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb/connection";
 import { seedDatabase, DEMO_USERS, DEMO_DEVICE_UUIDS } from "@/lib/mongodb/seed-data";
+import { User } from "@/models";
 
-export async function POST() {
-  if (process.env.NODE_ENV === "production") {
+async function handleSeed(request?: NextRequest) {
+  await connectToDatabase();
+
+  const userCount = await User.countDocuments();
+  const isDev = process.env.NODE_ENV !== "production";
+  const authSecret = process.env.AUTH_SECRET;
+  const providedSecret = request?.headers.get("x-seed-secret") || request?.nextUrl.searchParams.get("secret");
+
+  // Allow in dev, or in production if DB has 0 users, or if correct secret is provided
+  if (!isDev && userCount > 0 && (!authSecret || providedSecret !== authSecret)) {
     return NextResponse.json(
-      { error: "Seed endpoint disabled in production." },
+      {
+        error: "Database is already initialized. To re-seed in production, provide your AUTH_SECRET as a query parameter (?secret=...) or header (x-seed-secret).",
+      },
       { status: 403 }
     );
   }
 
-  await connectToDatabase();
   const seedResult = await seedDatabase(true);
 
   return NextResponse.json({
@@ -51,4 +61,12 @@ export async function POST() {
       subjects: seedResult.subjects.map((s) => ({ id: String(s._id), name: s.name })),
     },
   });
+}
+
+export async function POST(request: NextRequest) {
+  return handleSeed(request);
+}
+
+export async function GET(request: NextRequest) {
+  return handleSeed(request);
 }
